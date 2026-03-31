@@ -1,0 +1,5 @@
+{
+  "name": "MoneyGuide",
+  "description": "A mobile-first React web app for tracking weekly allowance and expenses with a professional feedback engine.",
+  "requestFramePermissions": []
+}
