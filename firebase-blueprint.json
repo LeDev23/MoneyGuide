@@ -1,0 +1,75 @@
+{
+  "entities": {
+    "Expense": {
+      "title": "Expense",
+      "description": "A single expense transaction",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number", "description": "The amount spent" },
+        "category": { "type": "string", "description": "Category of the expense" },
+        "note": { "type": "string", "description": "Description of the expense" },
+        "timestamp": { "type": "number", "description": "When the expense occurred" },
+        "isRecurring": { "type": "boolean", "description": "Whether this was automatically generated from a recurring expense" },
+        "uid": { "type": "string", "description": "User ID of the owner" }
+      },
+      "required": ["amount", "category", "note", "timestamp", "uid"]
+    },
+    "Goal": {
+      "title": "Goal",
+      "description": "A savings goal",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the goal" },
+        "targetAmount": { "type": "number", "description": "Target amount to save" },
+        "currentAmount": { "type": "number", "description": "Current amount saved" },
+        "deadline": { "type": "number", "description": "Optional deadline timestamp" },
+        "uid": { "type": "string", "description": "User ID of the owner" }
+      },
+      "required": ["name", "targetAmount", "currentAmount", "uid"]
+    },
+    "RecurringExpense": {
+      "title": "RecurringExpense",
+      "description": "A recurring fixed cost",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number", "description": "Amount of the recurring expense" },
+        "category": { "type": "string", "description": "Category" },
+        "note": { "type": "string", "description": "Description" },
+        "frequency": { "type": "string", "enum": ["daily", "weekly", "monthly", "custom"], "description": "How often the expense occurs" },
+        "customOccurrences": { "type": "number", "description": "Number of times it occurs in the custom period" },
+        "customPeriod": { "type": "string", "enum": ["weekly", "monthly"], "description": "The period for the custom occurrences" },
+        "uid": { "type": "string", "description": "User ID of the owner" }
+      },
+      "required": ["amount", "category", "note", "frequency", "uid"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "User's global settings like allowance",
+      "type": "object",
+      "properties": {
+        "allowance": { "type": "number", "description": "Allowance amount" },
+        "allowancePeriod": { "type": "string", "enum": ["weekly", "monthly"], "description": "Whether the allowance is weekly or monthly" },
+        "uid": { "type": "string", "description": "User ID of the owner" }
+      },
+      "required": ["allowance", "uid"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/expenses/{expenseId}": {
+      "schema": { "$ref": "#/entities/Expense" },
+      "description": "User's expenses"
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": { "$ref": "#/entities/Goal" },
+      "description": "User's savings goals"
+    },
+    "/users/{userId}/recurringExpenses/{recurringExpenseId}": {
+      "schema": { "$ref": "#/entities/RecurringExpense" },
+      "description": "User's recurring expenses"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserSettings" },
+      "description": "User's settings"
+    }
+  }
+}

@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+    
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+    
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    
+    function isValidUserSettings(data) {
+      return hasOnlyAllowedFields(['allowance', 'allowancePeriod', 'uid']) &&
+             data.allowance is number && data.allowance >= 0 &&
+             (!('allowancePeriod' in data) || (data.allowancePeriod is string && data.allowancePeriod in ['weekly', 'monthly'])) &&
+             data.uid is string && data.uid == request.auth.uid;
+    }
+    
+    function isValidExpense(data) {
+      return hasOnlyAllowedFields(['amount', 'category', 'note', 'timestamp', 'isRecurring', 'uid']) &&
+             data.amount is number && data.amount > 0 &&
+             data.category is string && data.category.size() > 0 && data.category.size() < 50 &&
+             data.note is string && data.note.size() <= 200 &&
+             data.timestamp is number &&
+             (!('isRecurring' in data) || data.isRecurring is bool) &&
+             data.uid is string && data.uid == request.auth.uid;
+    }
+    
+    function isValidGoal(data) {
+      return hasOnlyAllowedFields(['name', 'targetAmount', 'currentAmount', 'deadline', 'uid']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.targetAmount is number && data.targetAmount > 0 &&
+             data.currentAmount is number && data.currentAmount >= 0 &&
+             (!('deadline' in data) || data.deadline is number) &&
+             data.uid is string && data.uid == request.auth.uid;
+    }
+    
+    function isValidRecurringExpense(data) {
+      return hasOnlyAllowedFields(['amount', 'category', 'note', 'frequency', 'customOccurrences', 'customPeriod', 'uid']) &&
+             data.amount is number && data.amount > 0 &&
+             data.category is string && data.category.size() > 0 && data.category.size() < 50 &&
+             data.note is string && data.note.size() <= 200 &&
+             data.frequency is string && data.frequency in ['daily', 'weekly', 'monthly', 'custom'] &&
+             (!('customOccurrences' in data) || (data.customOccurrences is number && data.customOccurrences > 0)) &&
+             (!('customPeriod' in data) || (data.customPeriod is string && data.customPeriod in ['weekly', 'monthly'])) &&
+             data.uid is string && data.uid == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUserSettings(request.resource.data) && uidUnchanged();
+      allow update: if isOwner(userId) && isValidUserSettings(request.resource.data) && uidNotModified();
+      allow delete: if isOwner(userId);
+      
+      match /expenses/{expenseId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidExpense(request.resource.data) && uidUnchanged();
+        allow update: if isOwner(userId) && isValidExpense(request.resource.data) && uidNotModified();
+        allow delete: if isOwner(userId);
+      }
+      
+      match /goals/{goalId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidGoal(request.resource.data) && uidUnchanged();
+        allow update: if isOwner(userId) && isValidGoal(request.resource.data) && uidNotModified();
+        allow delete: if isOwner(userId);
+      }
+      
+      match /recurringExpenses/{recurringExpenseId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidRecurringExpense(request.resource.data) && uidUnchanged();
+        allow update: if isOwner(userId) && isValidRecurringExpense(request.resource.data) && uidNotModified();
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

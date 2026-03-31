@@ -24,7 +24,9 @@ export function RecurringSection({ recurringExpenses, onAdd, onDelete }: Props) 
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("Food");
   const [note, setNote] = useState("");
-  const [frequency, setFrequency] = useState<"weekly" | "monthly">("weekly");
+  const [frequency, setFrequency] = useState<"daily" | "weekly" | "monthly" | "custom">("weekly");
+  const [customOccurrences, setCustomOccurrences] = useState("3");
+  const [customPeriod, setCustomPeriod] = useState<"weekly" | "monthly">("weekly");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +37,10 @@ export function RecurringSection({ recurringExpenses, onAdd, onDelete }: Props) 
         category,
         note: note.trim(),
         frequency,
+        ...(frequency === "custom" ? {
+          customOccurrences: parseInt(customOccurrences) || 1,
+          customPeriod
+        } : {})
       });
       setAmount("");
       setNote("");
@@ -100,6 +106,15 @@ export function RecurringSection({ recurringExpenses, onAdd, onDelete }: Props) 
           <div className="flex gap-2">
             <button
               type="button"
+              onClick={() => setFrequency("daily")}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                frequency === "daily" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200"
+              }`}
+            >
+              Daily
+            </button>
+            <button
+              type="button"
               onClick={() => setFrequency("weekly")}
               className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                 frequency === "weekly" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200"
@@ -116,7 +131,38 @@ export function RecurringSection({ recurringExpenses, onAdd, onDelete }: Props) 
             >
               Monthly
             </button>
+            <button
+              type="button"
+              onClick={() => setFrequency("custom")}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                frequency === "custom" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200"
+              }`}
+            >
+              Custom
+            </button>
           </div>
+          
+          {frequency === "custom" && (
+            <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200 animate-in fade-in slide-in-from-top-1">
+              <input
+                type="number"
+                value={customOccurrences}
+                onChange={(e) => setCustomOccurrences(e.target.value)}
+                className="w-16 px-2 py-1.5 text-center bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+                min="1"
+                required
+              />
+              <span className="text-sm text-slate-600 font-medium">times per</span>
+              <select
+                value={customPeriod}
+                onChange={(e) => setCustomPeriod(e.target.value as "weekly" | "monthly")}
+                className="flex-1 px-2 py-1.5 bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+              >
+                <option value="weekly">Week</option>
+                <option value="monthly">Month</option>
+              </select>
+            </div>
+          )}
           <button
             type="submit"
             className="w-full py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors text-sm"
@@ -143,10 +189,12 @@ export function RecurringSection({ recurringExpenses, onAdd, onDelete }: Props) 
                 <div className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-wider text-slate-400">
                   <span className="flex items-center gap-1">
                     <Calendar size={10} />
-                    {expense.frequency}
+                    {expense.frequency === "custom" 
+                      ? `${expense.customOccurrences}x / ${expense.customPeriod === "weekly" ? "week" : "month"}`
+                      : expense.frequency}
                   </span>
                   <span>•</span>
-                  <span>₱{expense.amount.toFixed(2)}</span>
+                  <span>₱{expense.amount.toFixed(2)} {expense.frequency === "custom" ? "/ session" : ""}</span>
                 </div>
               </div>
             </div>

@@ -4,9 +4,10 @@ import { Utensils, Car, Gamepad2, GraduationCap, Tag } from "lucide-react";
 
 interface Props {
   allowance: number;
+  allowancePeriod: "weekly" | "monthly";
   totalSpent: number;
   expenses: Expense[];
-  totalRecurringWeekly: number;
+  totalRecurring: number;
 }
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -20,8 +21,8 @@ const getCategoryIcon = (category: string) => {
   return CATEGORY_ICONS[category] || <Tag size={14} />;
 };
 
-export function Dashboard({ allowance, totalSpent, expenses, totalRecurringWeekly }: Props) {
-  const totalDeductions = totalSpent + totalRecurringWeekly;
+export function Dashboard({ allowance, allowancePeriod, totalSpent, expenses, totalRecurring }: Props) {
+  const totalDeductions = totalSpent + totalRecurring;
   const remaining = allowance - totalDeductions;
   const percentageSpent = allowance > 0 ? (totalDeductions / allowance) * 100 : 0;
 
@@ -80,9 +81,9 @@ export function Dashboard({ allowance, totalSpent, expenses, totalRecurringWeekl
         <div className="mt-3 flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-slate-400">
           <div className="flex gap-3">
             <span>Spent: ₱{totalSpent.toFixed(2)}</span>
-            <span>Fixed: ₱{totalRecurringWeekly.toFixed(2)}</span>
+            <span>Fixed: ₱{totalRecurring.toFixed(2)}</span>
           </div>
-          <span>Allowance: ₱{allowance.toFixed(2)}</span>
+          <span>{allowancePeriod === "weekly" ? "Weekly" : "Monthly"}: ₱{allowance.toFixed(2)}</span>
         </div>
       </div>
 

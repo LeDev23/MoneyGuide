@@ -22,5 +22,7 @@ export interface RecurringExpense {
   amount: number;
   category: Category;
   note: string;
-  frequency: "weekly" | "monthly";
+  frequency: "daily" | "weekly" | "monthly" | "custom";
+  customOccurrences?: number;
+  customPeriod?: "weekly" | "monthly";
 }

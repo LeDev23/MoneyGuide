@@ -7,13 +7,13 @@ interface Props {
   totalSpent: number;
   expenses: Expense[];
   goals: Goal[];
-  totalRecurringWeekly: number;
+  totalRecurring: number;
 }
 
-export function FeedbackMessage({ allowance, totalSpent, expenses, goals, totalRecurringWeekly }: Props) {
+export function FeedbackMessage({ allowance, totalSpent, expenses, goals, totalRecurring }: Props) {
   if (allowance === 0) return null;
 
-  const totalDeductions = totalSpent + totalRecurringWeekly;
+  const totalDeductions = totalSpent + totalRecurring;
   const remaining = allowance - totalDeductions;
   const percentageSpent = (totalDeductions / allowance) * 100;
 
@@ -70,9 +70,9 @@ export function FeedbackMessage({ allowance, totalSpent, expenses, goals, totalR
   }
 
   // Recurring insight
-  if (totalRecurringWeekly > allowance * 0.4) {
+  if (totalRecurring > allowance * 0.4) {
     insights.push({
-      text: `Fixed costs are high: ₱${totalRecurringWeekly.toFixed(2)} (${((totalRecurringWeekly / allowance) * 100).toFixed(0)}% of allowance).`,
+      text: `Fixed costs are high: ₱${totalRecurring.toFixed(2)} (${((totalRecurring / allowance) * 100).toFixed(0)}% of allowance).`,
       icon: <Repeat size={18} />,
       color: "text-slate-700 bg-slate-100 border-slate-200",
     });
