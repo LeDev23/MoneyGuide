@@ -12,14 +12,11 @@ import { FeedbackMessage } from "./components/FeedbackMessage";
 import { GoalSection } from "./components/GoalSection";
 import { RecurringSection } from "./components/RecurringSection";
 import { Expense, Goal, RecurringExpense } from "./types";
-import { Wallet, RefreshCw, LayoutDashboard, Target, Repeat, LogOut } from "lucide-react";
-import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from "./firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc, query, orderBy } from "firebase/firestore";
+import { Wallet, RefreshCw, LayoutDashboard, Target, Repeat } from "lucide-react";
+import * as db from "./db";
 
 export default function App() {
-  const [user, setUser] = useState<any>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "goals" | "recurring">("overview");
 
   const [allowance, setAllowance] = useState<number>(0);
@@ -27,80 +24,35 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
+
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsAuthReady(true);
-    });
-    return () => unsubscribe();
+    const loadData = async () => {
+      try {
+        await db.initDB();
+        setAllowance(await db.getAllowance());
+        setAllowancePeriod(await db.getAllowancePeriod());
+        setExpenses(await db.getExpenses());
+        setGoals(await db.getGoals());
+        setRecurringExpenses(await db.getRecurringExpenses());
+      } catch (error) {
+        console.error("Failed to load local database:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
   }, []);
 
-  useEffect(() => {
-    if (!isAuthReady || !user) return;
-
-    const userDocRef = doc(db, "users", user.uid);
-    const unsubUser = onSnapshot(userDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setAllowance(data.allowance || 0);
-        setAllowancePeriod(data.allowancePeriod || "weekly");
-      } else {
-        setAllowance(0);
-        setAllowancePeriod("weekly");
-      }
-    }, (error) => handleFirestoreError(error, OperationType.GET, `users/${user.uid}`));
-
-    const expensesRef = collection(db, "users", user.uid, "expenses");
-    const qExpenses = query(expensesRef, orderBy("timestamp", "desc"));
-    const unsubExpenses = onSnapshot(qExpenses, (snapshot) => {
-      const exps: Expense[] = [];
-      snapshot.forEach((doc) => exps.push({ id: doc.id, ...doc.data() } as Expense));
-      setExpenses(exps);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/expenses`));
-
-    const goalsRef = collection(db, "users", user.uid, "goals");
-    const unsubGoals = onSnapshot(goalsRef, (snapshot) => {
-      const gs: Goal[] = [];
-      snapshot.forEach((doc) => gs.push({ id: doc.id, ...doc.data() } as Goal));
-      setGoals(gs);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/goals`));
-
-    const recurringRef = collection(db, "users", user.uid, "recurringExpenses");
-    const unsubRecurring = onSnapshot(recurringRef, (snapshot) => {
-      const res: RecurringExpense[] = [];
-      snapshot.forEach((doc) => res.push({ id: doc.id, ...doc.data() } as RecurringExpense));
-      setRecurringExpenses(res);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/recurringExpenses`));
-
-    return () => {
-      unsubUser();
-      unsubExpenses();
-      unsubGoals();
-      unsubRecurring();
-    };
-  }, [user, isAuthReady]);
-
-  if (!isAuthReady) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50">Loading...</div>;
-  }
-
-  if (!user) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-4">
-        <div className="text-emerald-600 mb-6">
-          <Wallet size={64} />
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4 text-emerald-600">
+          <Wallet size={48} className="animate-pulse" />
+          <p className="font-medium text-slate-600">Loading your data...</p>
         </div>
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">MoneyGuide</h1>
-        <p className="text-slate-500 mb-8 text-center max-w-xs">Track your allowance, manage expenses, and reach your savings goals.</p>
-        <button
-          onClick={loginWithGoogle}
-          className="px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-colors shadow-sm"
-        >
-          Sign in with Google
-        </button>
       </div>
     );
   }
@@ -130,107 +82,78 @@ export default function App() {
   }, 0);
 
   const handleSaveAllowance = async (newAllowance: number, period: "weekly" | "monthly") => {
-    try {
-      await setDoc(doc(db, "users", user.uid), { allowance: newAllowance, allowancePeriod: period, uid: user.uid }, { merge: true });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
-    }
+    await db.setAllowanceData(newAllowance, period);
+    setAllowance(newAllowance);
+    setAllowancePeriod(period);
   };
 
   const handleSaveExpense = async (expenseData: Omit<Expense, "id" | "timestamp">) => {
-    try {
-      if (editingExpense) {
-        await updateDoc(doc(db, "users", user.uid, "expenses", editingExpense.id), {
-          ...expenseData
-        });
-        setEditingExpense(null);
-      } else {
-        const newId = crypto.randomUUID();
-        await setDoc(doc(db, "users", user.uid, "expenses", newId), {
-          ...expenseData,
-          timestamp: Date.now(),
-          uid: user.uid
-        });
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/expenses`);
+    if (editingExpense) {
+      const updated = { ...editingExpense, ...expenseData };
+      await db.updateExpense(updated);
+      setExpenses(expenses.map(e => e.id === editingExpense.id ? updated : e));
+      setEditingExpense(null);
+    } else {
+      const newExpense: Expense = {
+        ...expenseData,
+        id: crypto.randomUUID(),
+        timestamp: Date.now()
+      };
+      await db.addExpense(newExpense);
+      setExpenses([newExpense, ...expenses]);
     }
   };
 
   const handleDeleteExpense = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, "users", user.uid, "expenses", id));
-      if (editingExpense?.id === id) {
-        setEditingExpense(null);
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `users/${user.uid}/expenses/${id}`);
+    await db.deleteExpense(id);
+    setExpenses(expenses.filter(e => e.id !== id));
+    if (editingExpense?.id === id) {
+      setEditingExpense(null);
     }
   };
 
   const handleAddGoal = async (goalData: Omit<Goal, "id">) => {
-    try {
-      const newId = crypto.randomUUID();
-      await setDoc(doc(db, "users", user.uid, "goals", newId), {
-        ...goalData,
-        uid: user.uid
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/goals`);
-    }
+    const newGoal: Goal = {
+      ...goalData,
+      id: crypto.randomUUID()
+    };
+    await db.addGoal(newGoal);
+    setGoals([...goals, newGoal]);
   };
 
   const handleUpdateGoal = async (id: string, amount: number) => {
-    try {
-      const goal = goals.find(g => g.id === id);
-      if (goal) {
-        await updateDoc(doc(db, "users", user.uid, "goals", id), {
-          currentAmount: goal.currentAmount + amount
-        });
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/goals/${id}`);
+    const goal = goals.find(g => g.id === id);
+    if (goal) {
+      const updated = { ...goal, currentAmount: goal.currentAmount + amount };
+      await db.updateGoal(updated);
+      setGoals(goals.map(g => g.id === id ? updated : g));
     }
   };
 
   const handleDeleteGoal = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, "users", user.uid, "goals", id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `users/${user.uid}/goals/${id}`);
-    }
+    await db.deleteGoal(id);
+    setGoals(goals.filter(g => g.id !== id));
   };
 
   const handleAddRecurring = async (reData: Omit<RecurringExpense, "id">) => {
-    try {
-      const newId = crypto.randomUUID();
-      await setDoc(doc(db, "users", user.uid, "recurringExpenses", newId), {
-        ...reData,
-        uid: user.uid
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/recurringExpenses`);
-    }
+    const newRecurring: RecurringExpense = {
+      ...reData,
+      id: crypto.randomUUID()
+    };
+    await db.addRecurringExpense(newRecurring);
+    setRecurringExpenses([...recurringExpenses, newRecurring]);
   };
 
   const handleDeleteRecurring = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, "users", user.uid, "recurringExpenses", id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `users/${user.uid}/recurringExpenses/${id}`);
-    }
+    await db.deleteRecurringExpense(id);
+    setRecurringExpenses(recurringExpenses.filter(re => re.id !== id));
   };
 
   const handleReset = async () => {
-    try {
-      for (const exp of expenses) {
-        await deleteDoc(doc(db, "users", user.uid, "expenses", exp.id));
-      }
-      setEditingExpense(null);
-      setShowResetConfirm(false);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `users/${user.uid}/expenses`);
-    }
+    await db.clearExpenses();
+    setExpenses([]);
+    setEditingExpense(null);
+    setShowResetConfirm(false);
   };
 
   return (
@@ -248,13 +171,6 @@ export default function App() {
               aria-label="Reset week"
             >
               <RefreshCw size={20} />
-            </button>
-            <button
-              onClick={logout}
-              className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
-              aria-label="Logout"
-            >
-              <LogOut size={20} />
             </button>
           </div>
         </div>
